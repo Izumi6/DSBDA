@@ -1,8 +1,22 @@
 /*
- * WordCount.java
- * ---------------
- * Counts how many times each word appears in a text file.
- * Uses Hadoop MapReduce in local (standalone) mode.
+ * ============================================
+ *  WordCount.java
+ * ============================================
+ *  What it does:
+ *    Counts how many times each word appears
+ *    in a text file using Hadoop MapReduce.
+ *
+ *  How it works:
+ *    1. MAPPER reads each line → splits into words
+ *       → sends out (word, 1) for each word
+ *    2. REDUCER collects all (word, 1) pairs
+ *       → adds them up → gives (word, total)
+ *
+ *  Example:
+ *    Input:  "Hello World Hello"
+ *    Output: Hello 2
+ *            World 1
+ * ============================================
  */
 
 import java.io.IOException;
@@ -20,12 +34,9 @@ import org.apache.hadoop.mapreduce.lib.output.FileOutputFormat;
 
 public class WordCount {
 
-    /*
-     * MAPPER
-     * - Reads each line of input
-     * - Splits it into words
-     * - Outputs (word, 1) for every word
-     */
+    // ──────────── MAPPER ────────────
+    // Input:  one line of text
+    // Output: (word, 1) for each word in that line
     public static class TokenizerMapper
             extends Mapper<Object, Text, Text, IntWritable> {
 
@@ -35,20 +46,20 @@ public class WordCount {
         public void map(Object key, Text value, Context context)
                 throws IOException, InterruptedException {
 
+            // Split the line into words
             StringTokenizer itr = new StringTokenizer(value.toString());
+
+            // For each word, output (word, 1)
             while (itr.hasMoreTokens()) {
                 word.set(itr.nextToken());
-                context.write(word, one);   // emit (word, 1)
+                context.write(word, one);
             }
         }
     }
 
-    /*
-     * REDUCER
-     * - Receives all counts for a word
-     * - Adds them up
-     * - Outputs (word, total)
-     */
+    // ──────────── REDUCER ────────────
+    // Input:  (word, [1, 1, 1, ...])
+    // Output: (word, total count)
     public static class IntSumReducer
             extends Reducer<Text, IntWritable, Text, IntWritable> {
 
@@ -57,19 +68,18 @@ public class WordCount {
         public void reduce(Text key, Iterable<IntWritable> values, Context context)
                 throws IOException, InterruptedException {
 
+            // Add up all the 1s for this word
             int sum = 0;
             for (IntWritable val : values) {
                 sum += val.get();
             }
             result.set(sum);
-            context.write(key, result);     // emit (word, total)
+            context.write(key, result);
         }
     }
 
-    /*
-     * MAIN / DRIVER
-     * - Sets up the job and runs it
-     */
+    // ──────────── MAIN (Driver) ────────────
+    // Sets up and runs the MapReduce job
     public static void main(String[] args) throws Exception {
 
         Configuration conf = new Configuration();
@@ -83,74 +93,136 @@ public class WordCount {
         job.setOutputKeyClass(Text.class);
         job.setOutputValueClass(IntWritable.class);
 
-        FileInputFormat.addInputPath(job, new Path(args[0]));   // input folder
-        FileOutputFormat.setOutputPath(job, new Path(args[1])); // output folder
+        // args[0] = input folder path
+        // args[1] = output folder path (must not exist yet)
+        FileInputFormat.addInputPath(job, new Path(args[0]));
+        FileOutputFormat.setOutputPath(job, new Path(args[1]));
 
         System.exit(job.waitForCompletion(true) ? 0 : 1);
     }
 }
 
 
-/* ============================================================
- *  HOW TO RUN — Terminal Commands (Ubuntu)
- *  (Hadoop is already installed)
- * ============================================================
+/*
+ * ================================================================
+ *  HOW TO RUN THIS PROGRAM — Ubuntu Terminal Commands
+ *  (Hadoop is already installed on your system)
+ * ================================================================
  *
- *  1. Check Hadoop is working:
+ *  Open your Ubuntu terminal and follow these steps one by one.
+ *  Copy-paste each command exactly as shown.
  *
- *       hadoop version
+ * ────────────────────────────────────────────────────────────────
+ *  STEP 1: First, check if Hadoop is working
+ * ────────────────────────────────────────────────────────────────
  *
- *  -----------------------------------------------------------
- *  2. Set the classpath (needed for compiling):
+ *    hadoop version
  *
- *       export HADOOP_CLASSPATH=$(hadoop classpath)
+ *    → You should see something like "Hadoop 3.3.6"
+ *    → If you see an error, Hadoop is not installed properly
  *
- *  -----------------------------------------------------------
- *  3. Create a sample input file:
+ * ────────────────────────────────────────────────────────────────
+ *  STEP 2: Set the Hadoop classpath
+ *          (This tells Java where Hadoop's files are)
+ * ────────────────────────────────────────────────────────────────
  *
- *       mkdir -p ~/wordcount_input
- *       echo "Hello World Hello Hadoop World MapReduce Hello" > ~/wordcount_input/input.txt
+ *    export HADOOP_CLASSPATH=$(hadoop classpath)
  *
- *       → File created at: ~/wordcount_input/input.txt
+ *    → No output means it worked. This is needed for compiling.
  *
- *  -----------------------------------------------------------
- *  4. Go to the folder where this file is saved:
+ * ────────────────────────────────────────────────────────────────
+ *  STEP 3: Create a folder and a sample input text file
+ * ────────────────────────────────────────────────────────────────
  *
- *       cd <path-to-this-file>
- *       Example: cd ~/hadoop/
+ *    mkdir -p ~/wordcount_input
  *
- *  -----------------------------------------------------------
- *  5. Compile the Java file:
+ *    echo "Hello World Hello Hadoop World MapReduce Hello" > ~/wordcount_input/input.txt
  *
- *       javac -classpath $HADOOP_CLASSPATH -d . WordCount.java
+ *    → This creates a file at:  ~/wordcount_input/input.txt
+ *    → The file contains: "Hello World Hello Hadoop World MapReduce Hello"
+ *    → You can also put your own text file here instead
  *
- *  -----------------------------------------------------------
- *  6. Make a JAR file:
+ * ────────────────────────────────────────────────────────────────
+ *  STEP 4: Go to the folder where WordCount.java is saved
+ *          ⚠️ REPLACE the path below with YOUR actual path!
+ * ────────────────────────────────────────────────────────────────
  *
- *       jar -cvf wordcount.jar *.class
+ *    cd /home/YourUsername/hadoop
+ *       ↑
+ *       PUT YOUR PATH HERE — this is the folder that has
+ *       WordCount.java inside it.
  *
- *  -----------------------------------------------------------
- *  7. Run the program:
+ *    To check if you're in the right folder, type:
+ *      ls
+ *    → You should see "WordCount.java" in the list
  *
- *       hadoop jar wordcount.jar WordCount ~/wordcount_input ~/wordcount_output
+ * ────────────────────────────────────────────────────────────────
+ *  STEP 5: Compile the Java file
+ *          (Converts .java → .class files)
+ * ────────────────────────────────────────────────────────────────
  *
- *       → Arg 1 (input):  ~/wordcount_input   (folder with input.txt)
- *       → Arg 2 (output): ~/wordcount_output  (must NOT exist yet)
+ *    javac -classpath $HADOOP_CLASSPATH -d . WordCount.java
  *
- *  -----------------------------------------------------------
- *  8. See the result:
+ *    → If no errors appear, compilation is successful
+ *    → This creates .class files in the current folder
  *
- *       cat ~/wordcount_output/part-r-00000
+ * ────────────────────────────────────────────────────────────────
+ *  STEP 6: Package into a JAR file
+ *          (Hadoop needs a .jar file to run)
+ * ────────────────────────────────────────────────────────────────
  *
- *       Output will look like:
- *         Hadoop       1
- *         Hello        3
- *         MapReduce    1
- *         World        2
+ *    jar -cvf wordcount.jar *.class
  *
- *  -----------------------------------------------------------
- *  9. To run again, first delete old output:
+ *    → This creates "wordcount.jar" in the current folder
  *
- *       rm -rf ~/wordcount_output
+ * ────────────────────────────────────────────────────────────────
+ *  STEP 7: Run the MapReduce program
+ *          ⚠️ Output folder must NOT exist before running!
+ * ────────────────────────────────────────────────────────────────
  *
- * ============================================================ */
+ *    hadoop jar wordcount.jar WordCount ~/wordcount_input ~/wordcount_output
+ *                                       ↑                 ↑
+ *                                       INPUT PATH        OUTPUT PATH
+ *                                       (folder with      (Hadoop will
+ *                                       your text file)   create this)
+ *
+ *    → Wait for it to finish (you'll see progress %)
+ *    → If output folder already exists, you'll get an error.
+ *      Delete it first: rm -rf ~/wordcount_output
+ *
+ * ────────────────────────────────────────────────────────────────
+ *  STEP 8: See the results!
+ * ────────────────────────────────────────────────────────────────
+ *
+ *    cat ~/wordcount_output/part-r-00000
+ *
+ *    → Expected output:
+ *        Hadoop       1
+ *        Hello        3
+ *        MapReduce    1
+ *        World        2
+ *
+ * ────────────────────────────────────────────────────────────────
+ *  STEP 9: Want to run again? Delete old output first!
+ * ────────────────────────────────────────────────────────────────
+ *
+ *    rm -rf ~/wordcount_output
+ *
+ *    → Then repeat from Step 7
+ *
+ * ================================================================
+ *  QUICK SUMMARY (all commands in order):
+ * ================================================================
+ *
+ *    hadoop version
+ *    export HADOOP_CLASSPATH=$(hadoop classpath)
+ *    mkdir -p ~/wordcount_input
+ *    echo "Hello World Hello Hadoop World MapReduce Hello" > ~/wordcount_input/input.txt
+ *    cd /home/YourUsername/hadoop              ← PUT YOUR PATH
+ *    javac -classpath $HADOOP_CLASSPATH -d . WordCount.java
+ *    jar -cvf wordcount.jar *.class
+ *    hadoop jar wordcount.jar WordCount ~/wordcount_input ~/wordcount_output
+ *    cat ~/wordcount_output/part-r-00000
+ *
+ * ================================================================
+ */
